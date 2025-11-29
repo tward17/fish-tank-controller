@@ -6,7 +6,7 @@ import secrets
 import config
 import sys
 import onewire, ds18x20, dht
-from umqtt.simple import MQTTClient
+from umqtt.robust import MQTTClient
 
 # WiFi connection details
 SSID = secrets.SSID
@@ -29,9 +29,9 @@ MONITOR_DHT22_POLLING_SECONDS = config.MONITOR_DHT22_POLLING_SECONDS
 # MQTT Sub Topics
 
 #MQTT Pub Topics
-FISHTANK_WATER_TEMPERATURE = b'fish_tank/water_temperature'
-FISHTANK_AIR_TEMPERATURE = b'fish_tank/air_temperature'
-FISHTANK_AIR_HUMIDITY = b'fish_tank/air_humidity'
+FISHTANK_WATER_TEMPERATURE = 'fish_tank/water_temperature'
+FISHTANK_AIR_TEMPERATURE = 'fish_tank/air_temperature'
+FISHTANK_AIR_HUMIDITY = 'fish_tank/air_humidity'
 
 #GPIO Pin Assignments
 DS_SENSOR_PIN = 27
@@ -119,8 +119,11 @@ class DHT22Monitor:
         publish_message(self.client,FISHTANK_AIR_HUMIDITY, str(self.humidity))
         self.pollsSinceLastHumidityPublishCount = 0
 
+global wlan
+
 # Connect to Wi-Fi
 def connect_wifi():
+    global wlan
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
     
@@ -141,10 +144,12 @@ def connect_wifi():
     else:
         print('Connected to Wifi')
 
+    return wlan
+
 # Callback function for handling incoming messages
 def mqtt_callback(topic, msg):
-    print('Received message on topic:', topic.decode())
-    print('Message:', msg.decode())
+    print('Received message on topic:', topic)
+    print('Message:', msg)
     
 # Connect to MQTT Broker
 def connect_mqtt():
@@ -156,13 +161,14 @@ def connect_mqtt():
 
 # Publish a message to MQTT topic
 def publish_message(client, topic, message):
-    print('Publishing message to topic:', topic.decode())
+    print('Publishing message to topic:', topic)
     client.publish(topic, message)
 
 # Main logic to run the MQTT client
 async def main():
 
     # Connect to Wi-Fi
+    global wlan
     if secrets.SSID != '' and secrets.WIFI_PASSWORD != '':
         connect_wifi()
     else:
@@ -184,6 +190,9 @@ async def main():
 
     try:
         while True:
+            if not wlan.isconnected():
+                wlan = connect_wifi()
+
             # Check for any incoming MQTT messages
             client.check_msg()
             await asyncio.sleep(0.1) # Small delay to prevent overloading the loop
